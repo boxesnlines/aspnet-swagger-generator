@@ -1,14 +1,17 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Build.Evaluation;
 using Microsoft.Build.Execution;
 using Microsoft.Build.Locator;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi;
+using Swashbuckle.AspNetCore.Swagger;
 
 namespace BoxesNLines.SwaggerGenerator;
 
+/// <summary>
+/// Analyzes an ASP.NET Web API project and returns a <see cref="WebApi"/> object containing OpenApi docs and Swagger JSON.
+/// </summary>
 public class ApiAnalyzer
 {
     public ApiAnalyzer()
@@ -16,17 +19,26 @@ public class ApiAnalyzer
         if (!MSBuildLocator.IsRegistered) MSBuildLocator.RegisterDefaults();
     }
 
+    /// <summary>
+    /// Analyze a project to retrieve OpenApi docs and Swagger JSON.
+    /// </summary>
+    /// <param name="projectPath">Path to an ASP.NET Web API project</param>
+    /// <returns>WebApi object containing results of analysis.</returns>
     public WebApi AnalyzeProject(string projectPath)
     {
         string builtDllPath = BuildProjectAndGetDllPath(projectPath);
         Assembly apiAssembly = Assembly.LoadFrom(builtDllPath);
-        ActionDescriptorCollection actions = GetEndpointsFromAssembly(apiAssembly);
+        OpenApiDocument openApiDocument = GetOpenApiFromAssembly(apiAssembly, null, "TestWebApi");
 
-        OpenApiDocument openApiDocument = GetOpenApiFromActionDescriptors(actions, Path.GetFileNameWithoutExtension(builtDllPath));
-
-        return new(actions, openApiDocument);
+        return new(openApiDocument);
     }
 
+    /// <summary>
+    /// Build a project and return the path of the built DLL.
+    /// Note that we build with the Debug profile for the purposes of this library.
+    /// </summary>
+    /// <param name="projectPath"></param>
+    /// <returns></returns>
     private string BuildProjectAndGetDllPath(string projectPath)
     {
         ProjectCollection projectCollection = new ProjectCollection();
@@ -50,27 +62,33 @@ public class ApiAnalyzer
         return builtDllPath;
     }
 
-    private ActionDescriptorCollection GetEndpointsFromAssembly(Assembly apiAssembly)
+    /// <summary>
+    /// Analyze the built assembly and retrieve an <see cref="OpenApiDocument"/> containing the details of all API actions.
+    /// </summary>
+    /// <param name="apiAssembly"></param>
+    /// <param name="openApiInfo"></param>
+    /// <param name="documentName"></param>
+    /// <param name="host"></param>
+    /// <param name="basePath"></param>
+    /// <returns></returns>
+    private OpenApiDocument GetOpenApiFromAssembly(Assembly apiAssembly, OpenApiInfo? openApiInfo = null, string documentName = "v1", string? host = null, string? basePath = null)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.Services.AddControllers()
             .AddApplicationPart(apiAssembly);
 
-        WebApplication app = builder.Build();
-
-        IActionDescriptorCollectionProvider provider = app.Services.GetRequiredService<IActionDescriptorCollectionProvider>();
-
-        return provider.ActionDescriptors;
-    }
-
-    private OpenApiDocument GetOpenApiFromActionDescriptors(ActionDescriptorCollection actionDescriptorCollection, string title)
-    {
-        OpenApiDocumentBuilder builder = new OpenApiDocumentBuilder();
-        OpenApiDocument document = builder.Build(actionDescriptorCollection.Items, new OpenApiInfo
+        openApiInfo ??= new OpenApiInfo { Title = documentName ?? "API", Version = "1.0" };
+        builder.Services.AddSwaggerGen(c =>
         {
-            Title = title,
-            Version = "1.0"
+            c.SwaggerDoc(documentName, openApiInfo);
         });
+        
+        WebApplication app = builder.Build();
+        
+        // Get OpenAPI document from Swashbuckle
+        var swaggerProvider = app.Services.GetRequiredService<ISwaggerProvider>();
+        OpenApiDocument document = swaggerProvider.GetSwagger(documentName, host, basePath);
+        
         return document;
     }
 }
