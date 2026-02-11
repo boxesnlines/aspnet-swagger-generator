@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.Build.Evaluation;
 using Microsoft.Build.Execution;
 using Microsoft.Build.Locator;
@@ -65,22 +66,23 @@ public class ApiAnalyzer
     /// <summary>
     /// Analyze the built assembly and retrieve an <see cref="OpenApiDocument"/> containing the details of all API actions.
     /// </summary>
-    /// <param name="apiAssembly"></param>
-    /// <param name="openApiInfo"></param>
-    /// <param name="documentName"></param>
-    /// <param name="host"></param>
-    /// <param name="basePath"></param>
+    /// <param name="apiAssembly">Assembly containing your ASP.NET Web API</param>
+    /// <param name="openApiInfo">Optional <see cref="OpenApiInfo"/> object to provide additional metadata</param>
+    /// <param name="documentName">Name for OpenApi document (optional, but recommended)</param>
+    /// <param name="host">Host for OpenApi document (optional)</param>
+    /// <param name="basePath">Base path for OpenApi document (optional)</param>
+    /// <param name="conflictResolver">Swagger conflict resolver, used to handle conflicts. For example: `apiDescriptions => apiDescriptions.First()`</param>
     /// <returns></returns>
-    private OpenApiDocument GetOpenApiFromAssembly(Assembly apiAssembly, OpenApiInfo? openApiInfo = null, string documentName = "v1", string? host = null, string? basePath = null)
+    private OpenApiDocument GetOpenApiFromAssembly(Assembly apiAssembly, OpenApiInfo? openApiInfo = null, string documentName = "v1", string? host = null, string? basePath = null, Func<IEnumerable<ApiDescription>, ApiDescription>? conflictResolver = null)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
-        builder.Services.AddControllers()
-            .AddApplicationPart(apiAssembly);
+        builder.Services.AddControllers().AddApplicationPart(apiAssembly);
 
-        openApiInfo ??= new OpenApiInfo { Title = documentName ?? "API", Version = "1.0" };
+        openApiInfo ??= new OpenApiInfo { Title = documentName, Version = "1.0" };
         builder.Services.AddSwaggerGen(c =>
         {
             c.SwaggerDoc(documentName, openApiInfo);
+            if (conflictResolver != null) c.ResolveConflictingActions(conflictResolver);
         });
         
         WebApplication app = builder.Build();
