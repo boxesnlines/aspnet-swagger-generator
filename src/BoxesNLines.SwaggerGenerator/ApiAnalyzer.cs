@@ -64,7 +64,8 @@ public class ApiAnalyzer
     }
 
     /// <summary>
-    /// Analyze the built assembly and retrieve an <see cref="OpenApiDocument"/> containing the details of all API actions.
+    /// Analyze a built assembly and retrieve an <see cref="OpenApiDocument"/> containing the details of all API actions.
+    /// This method is public to allow you to load assemblies through different means if you like.
     /// </summary>
     /// <param name="apiAssembly">Assembly containing your ASP.NET Web API</param>
     /// <param name="openApiInfo">Optional <see cref="OpenApiInfo"/> object to provide additional metadata</param>
@@ -73,7 +74,7 @@ public class ApiAnalyzer
     /// <param name="basePath">Base path for OpenApi document (optional)</param>
     /// <param name="conflictResolver">Swagger conflict resolver, used to handle conflicts. For example: `apiDescriptions => apiDescriptions.First()`</param>
     /// <returns></returns>
-    private OpenApiDocument GetOpenApiFromAssembly(Assembly apiAssembly, OpenApiInfo? openApiInfo = null, string documentName = "v1", string? host = null, string? basePath = null, Func<IEnumerable<ApiDescription>, ApiDescription>? conflictResolver = null)
+    public OpenApiDocument GetOpenApiFromAssembly(Assembly apiAssembly, OpenApiInfo? openApiInfo = null, string documentName = "v1", string? host = null, string? basePath = null, Func<IEnumerable<ApiDescription>, ApiDescription>? conflictResolver = null)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.Services.AddControllers().AddApplicationPart(apiAssembly);
